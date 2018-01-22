@@ -119,6 +119,7 @@ static void callBack() {
 			for (int i = nbr.size(); i < N; i++) file << "0 0 ";
 			file << part.surf[p] << std::endl;
 		}
+		file.close();
 		std::cout << " saved surf data. " << std::endl;
 		control.i_save = 0;
 	}
@@ -229,6 +230,32 @@ static void Initialize(int argc, char** argv) {
 	std::cout << " Reading file... " << std::endl;
 	part << filename;
 	part.init();
+
+	std::vector<Para::DataType> posx(part.pos[0]), posy(part.pos[1]);
+	part.permutate(0.4);
+	for (int p = 0; p < part.np; p++) {
+		posx[p] -= part.pos[0][p];
+		posy[p] -= part.pos[1][p];
+	}
+	std::ofstream fileX("dataX.out", std::ofstream::out), fileY("dataY.out", std::ofstream::out);
+	static const int N = 8;
+	for (int p = 0; p < part.np; p++) {
+		if (part.type[p] != FLUID || part.surf[p] > 0.5) continue;
+		std::vector<int> nbr;
+		part.nNearestNeighbor<N>(nbr, p);
+		fileX << std::scientific << std::setprecision(6);
+		for (auto i : nbr) {
+			fileX << (part.pos[0][i] - part.pos[0][p]) / part.dp << " " << (part.pos[1][i] - part.pos[1][p]) / part.dp << " ";
+			fileY << (part.pos[0][i] - part.pos[0][p]) / part.dp << " " << (part.pos[1][i] - part.pos[1][p]) / part.dp << " ";
+		}
+		for (int i = nbr.size(); i < N; i++) {
+			fileX << "0 0 ";
+			fileY << "0 0 ";
+		}
+		fileX << posx[p] << std::endl;
+		fileY << posy[p] << std::endl;
+	}
+	std::cout << " saved surf data. " << std::endl;
 
 	double left, right, bottom, top;
 	part.getBBox(left, right, bottom, top);
