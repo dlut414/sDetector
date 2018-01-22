@@ -237,13 +237,14 @@ static void Initialize(int argc, char** argv) {
 		posx[p] -= part.pos[0][p];
 		posy[p] -= part.pos[1][p];
 	}
-	std::ofstream fileX("dataX.out", std::ofstream::out), fileY("dataY.out", std::ofstream::out);
+	std::ofstream fileX("./out/dataX.out", std::ofstream::out), fileY("./out/dataY.out", std::ofstream::out);
 	static const int N = 8;
 	for (int p = 0; p < part.np; p++) {
 		if (part.type[p] != FLUID || part.surf[p] > 0.5) continue;
 		std::vector<int> nbr;
 		part.nNearestNeighbor<N>(nbr, p);
 		fileX << std::scientific << std::setprecision(6);
+		fileY << std::scientific << std::setprecision(6);
 		for (auto i : nbr) {
 			fileX << (part.pos[0][i] - part.pos[0][p]) / part.dp << " " << (part.pos[1][i] - part.pos[1][p]) / part.dp << " ";
 			fileY << (part.pos[0][i] - part.pos[0][p]) / part.dp << " " << (part.pos[1][i] - part.pos[1][p]) / part.dp << " ";
@@ -256,6 +257,8 @@ static void Initialize(int argc, char** argv) {
 		fileY << posy[p] << std::endl;
 	}
 	std::cout << " saved redistribution vector data. " << std::endl;
+	fileX.close();
+	fileY.close();
 
 	double left, right, bottom, top;
 	part.getBBox(left, right, bottom, top);
