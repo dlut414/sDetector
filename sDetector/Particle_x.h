@@ -936,9 +936,9 @@
 			}
 		}
 
-		void permutate() {
+		void permutate(R range) {
 			std::default_random_engine gen;
-			std::uniform_real_distribution<R> dis(-0.45, 0.45);
+			std::uniform_real_distribution<R> dis(-range, range);
 			for (int p = 0; p < np; p++) {
 				if (type[p] != FLUID || surf[p] > 0.5) continue;
 				pos[0][p] += dp* dis(gen);
@@ -972,7 +972,7 @@
 
 			updateInvMat();
 			makeSurf();
-			permutate();
+			
 			for (int p = 0; p < np; p++) {
 				div[p] = Div(vel[0].data(), vel[1].data(), p);
 				vort[p] = Rot(vel[0].data(), vel[1].data(), p);
