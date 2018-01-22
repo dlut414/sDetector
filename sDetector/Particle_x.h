@@ -909,9 +909,6 @@
 			exec("Layers = (17, 8, 8, 1)", global, global);
 			exec("nn = NN(Layers = Layers)", global, global);
 			exec("nn.load('.\\python\\config')", global, global);
-#if OMP
-//#pragma omp parallel for
-#endif
 			for (int p = 0; p < int(np); p++) surf[p] = double(isSurfML(global, p));
 		}
 
