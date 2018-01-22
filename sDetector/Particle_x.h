@@ -15,6 +15,7 @@
 #include "Derivative.h"
 #include <algorithm>
 #include <queue>
+#include <random>
 #define BOOST_PYTHON_STATIC_LIB
 #define BOOST_NUMPY_STATIC_LIB
 #include <boost/python.hpp>
@@ -935,6 +936,16 @@
 			}
 		}
 
+		void permutate() {
+			std::default_random_engine gen;
+			std::uniform_real_distribution<R> dis(-0.45, 0.45);
+			for (int p = 0; p < np; p++) {
+				if (type[p] != FLUID || surf[p] > 0.5) continue;
+				pos[0][p] += dp* dis(gen);
+				pos[1][p] += dp* dis(gen);
+			}
+		}
+
 		void init() {
 			eps = static_cast<R>(1.e-10);
 			eps_mat = static_cast<R>(1.e-6);
@@ -961,7 +972,7 @@
 
 			updateInvMat();
 			makeSurf();
-
+			permutate();
 			for (int p = 0; p < np; p++) {
 				div[p] = Div(vel[0].data(), vel[1].data(), p);
 				vort[p] = Rot(vel[0].data(), vel[1].data(), p);
