@@ -255,7 +255,7 @@ static void Initialize(int argc, char** argv) {
 		fileX << posx[p] << std::endl;
 		fileY << posy[p] << std::endl;
 	}
-	std::cout << " saved surf data. " << std::endl;
+	std::cout << " saved redistribution vector data. " << std::endl;
 
 	double left, right, bottom, top;
 	part.getBBox(left, right, bottom, top);
