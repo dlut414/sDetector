@@ -15,6 +15,11 @@
 #include "Derivative.h"
 #include <algorithm>
 #include <queue>
+#define BOOST_PYTHON_STATIC_LIB
+#define BOOST_NUMPY_STATIC_LIB
+#include <boost/python.hpp>
+#include <boost/python/numpy.hpp>
+#include <Python.h>
 
 	template <typename R, int D, int P>
 	class Particle_x : public Particle<R,D> {};
@@ -866,12 +871,48 @@
 			}
 			return 0;
 		}
+		int isSurfML(boost::python::object& global, int p) {
+			namespace PY = boost::python;
+			namespace NPY = boost::python::numpy;
+			static const int N = 8;
+			std::vector<int> nbr;
+			nNearestNeighbor<N>(nbr, p);
+			NPY::initialize();
+			NPY::ndarray x = NPY::zeros( PY::make_tuple(2*N+1, 1), NPY::dtype::get_builtin<float>() );
+			x[0][0] = type[p];
+			for (size_t i = 0; i < nbr.size(); i++) {
+				x[i * 2 + 1][0] = (pos[0][nbr[i]] - pos[0][p]) / dp;
+				x[i * 2 + 2][0] = (pos[1][nbr[i]] - pos[1][p]) / dp;
+			}
+			for (size_t i = nbr.size(); i < N; i++) {
+				x[i * 2 + 1][0] = 0;
+				x[i * 2 + 2][0] = 0;
+			}
+			PY::object nn = global["nn"];
+			PY::object predict01 = nn.attr("predict01");
+			PY::object ret = predict01(x);
+			PY::object np = global["numpy"];
+			PY::object asscalar = np.attr("asscalar");
+			PY::object iret = asscalar(ret);
+			return int( PY::extract<int>(iret) );
+		}
 
 		void makeSurf() {
+			using namespace boost::python;
+			Py_Initialize();
+			object main_module = import("__main__");
+			object global = main_module.attr("__dict__");
+			exec("import sys", global, global);
+			exec("sys.path.append('.\\python')", global, global);
+			exec("import numpy", global, global);
+			exec("from NN import NN as NN", global, global);
+			exec("Layers = (17, 8, 8, 1)", global, global);
+			exec("nn = NN(Layers = Layers)", global, global);
+			exec("nn.load('.\\python\\config')", global, global);
 #if OMP
-#pragma omp parallel for
+//#pragma omp parallel for
 #endif
-			for (int p = 0; p < int(np); p++) surf[p] = double(isSurf(p));
+			for (int p = 0; p < int(np); p++) surf[p] = double(isSurfML(global, p));
 		}
 
 		template <int N = 8>
