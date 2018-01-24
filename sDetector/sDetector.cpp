@@ -234,8 +234,8 @@ static void Initialize(int argc, char** argv) {
 	std::vector<Para::DataType> posx(part.pos[0]), posy(part.pos[1]);
 	part.permutate(0.4);
 	for (int p = 0; p < part.np; p++) {
-		posx[p] -= part.pos[0][p];
-		posy[p] -= part.pos[1][p];
+		posx[p] = (posx[p] - part.pos[0][p]) / part.dp;
+		posy[p] = (posy[p] - part.pos[1][p]) / part.dp;
 	}
 	std::ofstream file("./out/data.out", std::ofstream::out);
 	static const int N = 8;
