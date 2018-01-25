@@ -18,6 +18,9 @@
 #include <random>
 #define BOOST_PYTHON_STATIC_LIB
 #define BOOST_NUMPY_STATIC_LIB
+//#define BOOST_ALL_DYN_LINK
+//#define BOOST_PYTHON_DYNAMIC_LIB
+//#define BOOST_NUMPY_DYNAMIC_LIB
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
 #include <Python.h>
@@ -41,7 +44,7 @@
 		typedef Eigen::Matrix<R,PN::value,2> MatPD;
 		typedef Eigen::Matrix<R,PN::value,PN::value> MatPP;
 	public:
-		Particle_x() : Particle() {}
+		Particle_x() : Particle(), python_initialized(false), numpy_initialized(false) {}
 		~Particle_x() {}
 
 		__forceinline const R ww(const R& r) const {
@@ -878,7 +881,10 @@
 			static const int N = 8;
 			std::vector<int> nbr;
 			nNearestNeighbor<N>(nbr, p);
-			NPY::initialize();
+			if (!numpy_initialized) {
+				NPY::initialize();
+				numpy_initialized = true;
+			}
 			NPY::ndarray x = NPY::zeros( PY::make_tuple(2*N+1, 1), NPY::dtype::get_builtin<float>() );
 			x[0][0] = type[p];
 			for (size_t i = 0; i < nbr.size(); i++) {
@@ -900,7 +906,10 @@
 
 		void makeSurf() {
 			using namespace boost::python;
-			Py_Initialize();
+			if (!python_initialized) {
+				Py_Initialize();
+				python_initialized = true;
+			}
 			object main_module = import("__main__");
 			object global = main_module.attr("__dict__");
 			exec("import sys", global, global);
@@ -911,6 +920,42 @@
 			exec("nn = NN(Layers = Layers)", global, global);
 			exec("nn.load('.\\python\\config')", global, global);
 			for (int p = 0; p < int(np); p++) surf[p] = double(isSurfML(global, p));
+		}
+
+		void Redistribute() {
+			using namespace boost::python;
+			namespace NPY = boost::python::numpy;
+			if (!python_initialized) {
+				Py_Initialize();
+				python_initialized = true;
+			}
+			if (!numpy_initialized) {
+				NPY::initialize();
+				numpy_initialized = true;
+			}
+			object main_module = import("__main__");
+			object global = main_module.attr("__dict__");
+			exec("import tensorflow as tf", global, global);
+			exec("saver = tf.train.Saver()", global, global);
+			exec("sess = tf.Session()", global, global);
+			exec("saver.restore(sess, '.\\python\\tf_model\\model.ckpt')", global, global);
+			const int N = 24;
+			std::vector<int> nbr;
+			nNearestNeighbor<N>(nbr, p);
+			if (!numpy_initialized) {
+				NPY::initialize();
+				numpy_initialized = true;
+			}
+			NPY::ndarray x = NPY::zeros(PY::make_tuple(1, 2 * N), NPY::dtype::get_builtin<float>());
+			for (size_t i = 0; i < nbr.size(); i++) {
+				x[0][i * 2] = (pos[0][nbr[i]] - pos[0][p]) / dp;
+				x[0][i * 2 + 1] = (pos[1][nbr[i]] - pos[1][p]) / dp;
+			}
+			for (size_t i = nbr.size(); i < N; i++) {
+				x[0][i * 2] = 0;
+				x[0][i * 2 + 1] = 0;
+			}
+			///predict here
 		}
 
 		template <int N = 8>
@@ -1009,6 +1054,9 @@
 
 		Eigen::Matrix<R, 1, PNH::value, Eigen::RowMajor>					pnH_px_o;
 		Eigen::Matrix<R, 1, PNH::value, Eigen::RowMajor>					pnH_py_o;
+	private:
+		bool python_initialized;
+		bool numpy_initialized;
 	};
 
 	template <typename R, int P>
