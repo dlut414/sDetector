@@ -237,8 +237,8 @@ static void Initialize(int argc, char** argv) {
 		posx[p] = (posx[p] - part.pos[0][p]) / part.dp;
 		posy[p] = (posy[p] - part.pos[1][p]) / part.dp;
 	}
-	std::ofstream file("./out/data.out", std::ofstream::out);
-	static const int N = 8;
+	std::ofstream file("./out/" + filename, std::ofstream::out);
+	static const int N = 24;
 	for (int p = 0; p < part.np; p++) {
 		if (part.type[p] != FLUID || part.surf[p] > 0.5) continue;
 		std::vector<int> nbr;
