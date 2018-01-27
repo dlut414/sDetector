@@ -119,6 +119,7 @@ static void callBack() {
 			for (int i = nbr.size(); i < N; i++) file << "0 0 ";
 			file << part.surf[p] << std::endl;
 		}
+		file.close();
 		std::cout << " saved surf data. " << std::endl;
 		control.i_save = 0;
 	}
@@ -171,6 +172,10 @@ static void onKeyboard(unsigned char key, int x, int y) {
 	if (!TwEventKeyboardGLUT(key, x, y)) {
 		glutPostRedisplay();
 		control.pressKey(key, x, y);
+		///redistribute
+		if (key == 'r') {
+			part.Redistribute();
+		}
 	}
 }
 static void onDisplay() {
@@ -229,6 +234,30 @@ static void Initialize(int argc, char** argv) {
 	std::cout << " Reading file... " << std::endl;
 	part << filename;
 	part.init();
+
+	std::vector<Para::DataType> posx(part.pos[0]), posy(part.pos[1]);
+	part.permutate(0.3);
+	for (int p = 0; p < part.np; p++) {
+		posx[p] = (posx[p] - part.pos[0][p]) / part.dp;
+		posy[p] = (posy[p] - part.pos[1][p]) / part.dp;
+	}
+	std::ofstream file("./out/" + filename, std::ofstream::out);
+	static const int N = 24;
+	for (int p = 0; p < part.np; p++) {
+		if (part.type[p] != FLUID || part.surf[p] > 0.5) continue;
+		std::vector<int> nbr;
+		part.nNearestNeighbor<N>(nbr, p);
+		file << std::scientific << std::setprecision(6);
+		for (auto i : nbr) {
+			file << (part.pos[0][i] - part.pos[0][p]) / part.dp << " " << (part.pos[1][i] - part.pos[1][p]) / part.dp << " ";
+		}
+		for (int i = nbr.size(); i < N; i++) {
+			file << "0 0 ";
+		}
+		file << posx[p] << " " << posy[p] << std::endl;
+	}
+	std::cout << " saved redistribution vector data. " << std::endl;
+	file.close();
 
 	double left, right, bottom, top;
 	part.getBBox(left, right, bottom, top);

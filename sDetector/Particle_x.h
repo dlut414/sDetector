@@ -16,8 +16,11 @@
 #include <algorithm>
 #include <queue>
 #include <random>
-#define BOOST_PYTHON_STATIC_LIB
-#define BOOST_NUMPY_STATIC_LIB
+//#define BOOST_PYTHON_STATIC_LIB
+//#define BOOST_NUMPY_STATIC_LIB
+//#define BOOST_ALL_DYN_LINK
+#define BOOST_PYTHON_DYNAMIC_LIB
+#define BOOST_NUMPY_DYNAMIC_LIB
 #include <boost/python.hpp>
 #include <boost/python/numpy.hpp>
 #include <Python.h>
@@ -41,7 +44,7 @@
 		typedef Eigen::Matrix<R,PN::value,2> MatPD;
 		typedef Eigen::Matrix<R,PN::value,PN::value> MatPP;
 	public:
-		Particle_x() : Particle() {}
+		Particle_x() : Particle(), python_initialized(false), numpy_initialized(false) {}
 		~Particle_x() {}
 
 		__forceinline const R ww(const R& r) const {
@@ -872,13 +875,16 @@
 			}
 			return 0;
 		}
-		int isSurfML(boost::python::object& global, int p) {
+		int isSurfML(int p) {
 			namespace PY = boost::python;
 			namespace NPY = boost::python::numpy;
 			static const int N = 8;
 			std::vector<int> nbr;
 			nNearestNeighbor<N>(nbr, p);
-			NPY::initialize();
+			if (!numpy_initialized) {
+				NPY::initialize();
+				numpy_initialized = true;
+			}
 			NPY::ndarray x = NPY::zeros( PY::make_tuple(2*N+1, 1), NPY::dtype::get_builtin<float>() );
 			x[0][0] = type[p];
 			for (size_t i = 0; i < nbr.size(); i++) {
@@ -900,17 +906,86 @@
 
 		void makeSurf() {
 			using namespace boost::python;
-			Py_Initialize();
-			object main_module = import("__main__");
-			object global = main_module.attr("__dict__");
+			if (!python_initialized) {
+				Py_Initialize();
+				main_module = import("__main__");
+				global = main_module.attr("__dict__");
+				python_initialized = true;
+			}
 			exec("import sys", global, global);
-			exec("sys.path.append('.\\python')", global, global);
+			exec("sys.path.append('./python')", global, global);
 			exec("import numpy", global, global);
 			exec("from NN import NN as NN", global, global);
 			exec("Layers = (17, 8, 8, 1)", global, global);
 			exec("nn = NN(Layers = Layers)", global, global);
-			exec("nn.load('.\\python\\config')", global, global);
-			for (int p = 0; p < int(np); p++) surf[p] = double(isSurfML(global, p));
+			exec("nn.load('./python/config')", global, global);
+			for (int p = 0; p < int(np); p++) surf[p] = double(isSurfML(p));
+		}
+
+		void Redistribute() {
+			using namespace boost::python;
+			namespace NPY = boost::python::numpy;
+			if (!python_initialized) {
+				Py_Initialize();
+				python_initialized = true;
+			}
+			if (!numpy_initialized) {
+				NPY::initialize();
+				main_module = import("__main__");
+				global = main_module.attr("__dict__");
+				numpy_initialized = true;
+			}
+			try {
+				exec("import numpy as np", global, global);
+				exec("import tensorflow as tf", global, global);
+				exec("sess = tf.Session()", global, global);
+				exec("saver = tf.train.import_meta_graph('./python/tf_model/model.meta')", global, global);
+				exec("saver.restore(sess, tf.train.latest_checkpoint('./python/tf_model/'))", global, global);
+				exec("graph = tf.get_default_graph()", global, global);
+				exec("x = graph.get_tensor_by_name('x:0')", global, global);
+				exec("y = graph.get_tensor_by_name('y:0')", global, global);
+			}
+			catch (const error_already_set&) {
+				PyErr_Print();
+			}
+			for (int p = 0; p < np; p++) {
+				if (type[p] != FLUID || surf[p] > 0.5) continue;
+				const int N = 24;
+				std::vector<int> nbr;
+				nNearestNeighbor<N>(nbr, p);
+				if (!numpy_initialized) {
+					NPY::initialize();
+					numpy_initialized = true;
+				}
+				NPY::ndarray xx = NPY::zeros(make_tuple(1, 2 * N), NPY::dtype::get_builtin<float>());
+				for (size_t i = 0; i < nbr.size(); i++) {
+					xx[0][i * 2] = (pos[0][nbr[i]] - pos[0][p]) / dp;
+					xx[0][i * 2 + 1] = (pos[1][nbr[i]] - pos[1][p]) / dp;
+				}
+				for (size_t i = nbr.size(); i < N; i++) {
+					xx[0][i * 2] = 0;
+					xx[0][i * 2 + 1] = 0;
+				}
+				///predict here
+				try {
+					object x = global["x"];
+					object y = global["y"];
+					dict feed_dict;
+					feed_dict[x] = xx;
+					///sess argument to y.attr("eval")() must be defined as object first
+					object sess = global["sess"];
+					object res = y.attr("eval")(feed_dict, sess);
+					object item = res.attr("item");
+					R vx = extract<R>(item(0));
+					R vy = extract<R>(item(1));
+					pos[0][p] += dp* vx;
+					pos[1][p] += dp* vy;
+				}
+				catch (const error_already_set&) {
+					PyErr_Print();
+				}
+			}
+			exec("sess.close()", global, global);
 		}
 
 		template <int N = 8>
@@ -936,9 +1011,9 @@
 			}
 		}
 
-		void permutate() {
+		void permutate(R range) {
 			std::default_random_engine gen;
-			std::uniform_real_distribution<R> dis(-0.45, 0.45);
+			std::uniform_real_distribution<R> dis(-range, range);
 			for (int p = 0; p < np; p++) {
 				if (type[p] != FLUID || surf[p] > 0.5) continue;
 				pos[0][p] += dp* dis(gen);
@@ -972,7 +1047,7 @@
 
 			updateInvMat();
 			makeSurf();
-			permutate();
+			
 			for (int p = 0; p < np; p++) {
 				div[p] = Div(vel[0].data(), vel[1].data(), p);
 				vort[p] = Rot(vel[0].data(), vel[1].data(), p);
@@ -1009,6 +1084,11 @@
 
 		Eigen::Matrix<R, 1, PNH::value, Eigen::RowMajor>					pnH_px_o;
 		Eigen::Matrix<R, 1, PNH::value, Eigen::RowMajor>					pnH_py_o;
+	private:
+		bool python_initialized;
+		bool numpy_initialized;
+		boost::python::object main_module;
+		boost::python::object global;
 	};
 
 	template <typename R, int P>
