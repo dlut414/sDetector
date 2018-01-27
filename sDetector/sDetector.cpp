@@ -172,6 +172,10 @@ static void onKeyboard(unsigned char key, int x, int y) {
 	if (!TwEventKeyboardGLUT(key, x, y)) {
 		glutPostRedisplay();
 		control.pressKey(key, x, y);
+		///redistribute
+		if (key == 'r') {
+			part.Redistribute();
+		}
 	}
 }
 static void onDisplay() {
