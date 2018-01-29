@@ -236,7 +236,7 @@ static void Initialize(int argc, char** argv) {
 	part.init();
 
 	std::vector<Para::DataType> posx(part.pos[0]), posy(part.pos[1]);
-	//part.permutate(0.3);
+	part.permutate(0.3);
 	for (int p = 0; p < part.np; p++) {
 		posx[p] = (posx[p] - part.pos[0][p]) / part.dp;
 		posy[p] = (posy[p] - part.pos[1][p]) / part.dp;
